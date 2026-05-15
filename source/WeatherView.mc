@@ -235,7 +235,7 @@ class WeatherView extends WatchUi.View {
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
         dc.drawText(numX, numY, Graphics.FONT_NUMBER_MEDIUM,
             tempStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
-        dc.drawText(numX + numW + 2, numY - (H * 0.09).toNumber(), Graphics.FONT_SMALL,
+        dc.drawText(numX + numW + 2, numY - (H * 0.05).toNumber(), Graphics.FONT_SMALL,
             "°C", Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
 
         // Feels like
@@ -274,16 +274,16 @@ class WeatherView extends WatchUi.View {
             "gust " + gust.format("%.0f"),
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
 
-        // Wind direction arrow + compass label
+        // Wind direction arrow (under WIND column) + compass label (under RAIN column)
         var arrowSize = (H * 0.09).toNumber();
-        var arrowCx   = (W * 0.60).toNumber().toFloat();
+        var arrowCx   = colL.toFloat();
         var arrowCy   = (H * 0.86).toNumber().toFloat();
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
         dc.fillPolygon(windArrow(arrowCx, arrowCy, wdeg + 180.0f, arrowSize));
 
-        dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-        dc.drawText((W * 0.72).toNumber(), (H * 0.86).toNumber(), Graphics.FONT_SMALL,
-            windDirName(wdeg), Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(colR, (H * 0.86).toNumber(), Graphics.FONT_SMALL,
+            windDirName(wdeg), Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
     }
 
     // Indicator dots: left = GPS, right = Samford Valley
