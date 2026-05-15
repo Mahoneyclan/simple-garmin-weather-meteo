@@ -1,5 +1,7 @@
 # Simple Garmin Weather (Open-Meteo)
 
+![Widget on Fenix 6 Pro](docs/screenshot_samford_watch.png)
+
 A clean, minimal weather widget for Garmin Fenix watches. Displays live conditions for two locations — your current GPS position and a fixed home location (default: Samford Valley, QLD) — with a single button toggle between them.
 
 | GPS Location | Home Location |
