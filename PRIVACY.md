@@ -1,10 +1,10 @@
-# Privacy Policy — Simple Garmin Weather
+# Privacy Policy — SimpleGlance Weather Widget
 
-**Last updated: 15 May 2026**
+**Last updated: 16 May 2026**
 
 ## Overview
 
-Simple Garmin Weather ("the app") is a Garmin Connect IQ widget that displays weather conditions for your current GPS location and a fixed home location. This policy explains what data the app accesses and how it is used.
+SimpleGlance Weather Widget ("the app") is a Connect IQ widget that displays weather conditions for your current GPS location and a fixed home location. This policy explains what data the app accesses and how it is used.
 
 ## Data Collected
 

@@ -12,10 +12,20 @@ import Toybox.WatchUi;
 
 class WeatherView extends WatchUi.View {
 
-    private const SAMFORD_LAT as Float = -27.3705f;
-    private const SAMFORD_LON as Float = 152.8691f;
-    private const SAMFORD_NAME as String = "Samford Valley";
-    private const GPS_NAME     as String = "GPS Location";
+    private const GPS_NAME as String = "GPS Location";
+
+    private function homeName() as String {
+        var v = Application.Properties.getValue("home_name");
+        return (v != null) ? v as String : "Home";
+    }
+    private function homeLat() as Float {
+        var v = Application.Properties.getValue("home_lat");
+        return (v != null) ? (v as String).toFloat() : -27.3705f;
+    }
+    private function homeLon() as Float {
+        var v = Application.Properties.getValue("home_lon");
+        return (v != null) ? (v as String).toFloat() : 152.8691f;
+    }
 
     // 0 = GPS location, 1 = Samford Valley
     var locationIndex as Number = 0;
@@ -109,7 +119,7 @@ class WeatherView extends WatchUi.View {
     }
 
     private function fetchSamford() as Void {
-        fetchWeather(SAMFORD_LAT, SAMFORD_LON, method(:onSamfordResponse));
+        fetchWeather(homeLat(), homeLon(), method(:onSamfordResponse));
     }
 
     private function fetchWeather(lat, lon, callback as Method) as Void {
@@ -155,7 +165,7 @@ class WeatherView extends WatchUi.View {
     function onSamfordResponse(responseCode as Number, data as Dictionary?) as Void {
         System.println("[WeatherView] onSamfordResponse: responseCode=" + responseCode);
         if (responseCode == 200 && data != null) {
-            samfordData = parseWeather(data, SAMFORD_NAME);
+            samfordData = parseWeather(data, homeName());
             Storage.setValue("samford_weather", samfordData);
             System.println("[WeatherView] onSamfordResponse: parsed OK temp=" + samfordData[0] + " wind=" + samfordData[2]);
             WatchUi.requestUpdate();

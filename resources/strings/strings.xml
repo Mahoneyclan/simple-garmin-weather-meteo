@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <strings>
-    <string id="AppName">Weather</string>
+    <string id="AppName">SimpleGlance</string>
 <string id="NoLocation">Waiting for\nGPS location...</string>
     <string id="Loading">Loading\nweather...</string>
     <string id="GpsLocation">GPS Location</string>

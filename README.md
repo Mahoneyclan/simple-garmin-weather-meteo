@@ -1,4 +1,4 @@
-# Simple Garmin Weather (Open-Meteo)
+# SimpleGlance Weather Widget (Open-Meteo)
 
 ![Widget on Fenix 6 Pro](docs/screenshot_samford_watch.png)
 
@@ -36,18 +36,11 @@ Fenix 5 Plus, 5S Plus, 5X Plus, Fenix 6 / 6S / 6X (all variants), Fenix 7 / 7S /
 | Setting | Default | Options |
 |---------|---------|---------|
 | Background Refresh Interval | 30 min | 15 / 30 / 60 min |
+| Home Location Name | Samford Valley | Any text (max 32 chars) |
+| Home Latitude | -27.3705 | Decimal degrees (e.g. -27.3705) |
+| Home Longitude | 152.8691 | Decimal degrees (e.g. 152.8691) |
 
-Change settings via the **Garmin Connect app** on your phone → My Device → Apps & Widgets → Simple Garmin Weather.
-
-## Home Location
-
-The default home location is **Samford Valley, QLD, Australia** (-27.3705°S, 152.8691°E). To change it, edit the constants in `source/WeatherView.mc` and `source/BackgroundService.mc`:
-
-```
-private const SAMFORD_LAT as Float = -27.3705f;
-private const SAMFORD_LON as Float = 152.8691f;
-private const SAMFORD_NAME as String = "Samford Valley";
-```
+Change settings via the **Garmin Connect app** on your phone → My Device → Apps & Widgets → SimpleGlance Weather Widget.
 
 ## Building
 

@@ -9,11 +9,20 @@ import Toybox.System;
 (:background)
 class BackgroundService extends Toybox.System.ServiceDelegate {
 
-    private const SAMFORD_LAT as Float = -27.3705f;
-    private const SAMFORD_LON as Float = 152.8691f;
+    private const GPS_NAME as String = "GPS Location";
 
-    private const GPS_NAME     as String = "GPS Location";
-    private const SAMFORD_NAME as String = "Samford Valley";
+    private function homeName() as String {
+        var v = Application.Properties.getValue("home_name");
+        return (v != null) ? v as String : "Home";
+    }
+    private function homeLat() as Float {
+        var v = Application.Properties.getValue("home_lat");
+        return (v != null) ? (v as String).toFloat() : -27.3705f;
+    }
+    private function homeLon() as Float {
+        var v = Application.Properties.getValue("home_lon");
+        return (v != null) ? (v as String).toFloat() : 152.8691f;
+    }
 
     private var pending as Number = 2;
     private var gpsResult as Array? = null;
@@ -24,7 +33,7 @@ class BackgroundService extends Toybox.System.ServiceDelegate {
     }
 
     function onTemporalEvent() as Void {
-        fetchWeather(SAMFORD_LAT, SAMFORD_LON, method(:onSamfordData));
+        fetchWeather(homeLat(), homeLon(), method(:onSamfordData));
 
         var stored = Storage.getValue("gps_coords") as Array<Double>?;
         if (stored != null) {
@@ -58,7 +67,7 @@ class BackgroundService extends Toybox.System.ServiceDelegate {
     }
 
     function onSamfordData(responseCode as Number, data as Dictionary?) as Void {
-        samfordResult = parseWeather(responseCode, data, SAMFORD_NAME);
+        samfordResult = parseWeather(responseCode, data, homeName());
         pending--;
         if (pending == 0) {
             Background.exit([ gpsResult, samfordResult ]);
