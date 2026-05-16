@@ -16,13 +16,13 @@
             </settingConfig>
         </setting>
         <setting propertyKey="@Properties.home_name" title="Home Location Name">
-            <settingConfig type="text" maxLength="32"/>
+            <settingConfig type="alphaNumeric" maxLength="32"/>
         </setting>
         <setting propertyKey="@Properties.home_lat" title="Home Latitude">
-            <settingConfig type="text" maxLength="12"/>
+            <settingConfig type="alphaNumeric" maxLength="12"/>
         </setting>
         <setting propertyKey="@Properties.home_lon" title="Home Longitude">
-            <settingConfig type="text" maxLength="12"/>
+            <settingConfig type="alphaNumeric" maxLength="12"/>
         </setting>
     </settings>
 </resources>
