@@ -241,7 +241,7 @@ class WeatherView extends WatchUi.View {
         var numW = dc.getTextWidthInPixels(tempStr, Graphics.FONT_NUMBER_MEDIUM);
         var unitW = dc.getTextWidthInPixels("°C", Graphics.FONT_SMALL);
         var numX = (W - numW - unitW) / 2;
-        var numY = (H * 0.32).toNumber();
+        var numY = (H * 0.27).toNumber();
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
         dc.drawText(numX, numY, Graphics.FONT_NUMBER_MEDIUM,
             tempStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
@@ -250,13 +250,13 @@ class WeatherView extends WatchUi.View {
 
         // Feels like
         dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(W / 2, (H * 0.50).toNumber(), Graphics.FONT_SMALL,
+        dc.drawText(W / 2, (H * 0.44).toNumber(), Graphics.FONT_SMALL,
             "Feels " + feels.format("%d") + "°C", Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
 
         // Separator
         dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
-        dc.drawLine((W * 0.2).toNumber(), (H * 0.58).toNumber(),
-                    (W * 0.8).toNumber(), (H * 0.58).toNumber());
+        dc.drawLine((W * 0.2).toNumber(), (H * 0.51).toNumber(),
+                    (W * 0.8).toNumber(), (H * 0.51).toNumber());
 
         // Wind (left column) | Rain (right column)
         var colL = (W * 0.32).toNumber();
@@ -264,42 +264,42 @@ class WeatherView extends WatchUi.View {
 
         // Column labels
         dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(colL, (H * 0.63).toNumber(), Graphics.FONT_TINY, "WIND",
+        dc.drawText(colL, (H * 0.59).toNumber(), Graphics.FONT_TINY, "WIND",
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-        dc.drawText(colR, (H * 0.63).toNumber(), Graphics.FONT_TINY, "RAIN",
+        dc.drawText(colR, (H * 0.59).toNumber(), Graphics.FONT_TINY, "RAIN",
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
 
         // Values
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(colL, (H * 0.71).toNumber(), Graphics.FONT_SMALL,
+        dc.drawText(colL, (H * 0.68).toNumber(), Graphics.FONT_SMALL,
             speed.format("%.0f") + " km/h",
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-        dc.drawText(colR, (H * 0.71).toNumber(), Graphics.FONT_SMALL,
+        dc.drawText(colR, (H * 0.68).toNumber(), Graphics.FONT_SMALL,
             rain.format("%.1f") + " mm",
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
 
         // Gust sub-label
         dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(colL, (H * 0.78).toNumber(), Graphics.FONT_TINY,
+        dc.drawText(colL, (H * 0.76).toNumber(), Graphics.FONT_TINY,
             "gust " + gust.format("%.0f"),
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
 
         // Wind direction arrow (under WIND column) + compass label (under RAIN column)
         var arrowSize = (H * 0.09).toNumber();
         var arrowCx   = colL.toFloat();
-        var arrowCy   = (H * 0.86).toNumber().toFloat();
+        var arrowCy   = (H * 0.87).toNumber().toFloat();
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
         dc.fillPolygon(windArrow(arrowCx, arrowCy, wdeg + 180.0f, arrowSize));
 
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(colR, (H * 0.86).toNumber(), Graphics.FONT_SMALL,
+        dc.drawText(colR, (H * 0.87).toNumber(), Graphics.FONT_SMALL,
             windDirName(wdeg), Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
     }
 
     // Indicator dots: left = GPS, right = Samford Valley
     private function drawIndicator(dc as Dc, W as Number, H as Number) as Void {
         var r  = (W * 0.027).toNumber();
-        var cy = (H * 0.92).toNumber();
+        var cy = (H * 0.93).toNumber();
         var gap = r * 3;
         var cx0 = W / 2 - gap / 2;
         var cx1 = W / 2 + gap / 2;
