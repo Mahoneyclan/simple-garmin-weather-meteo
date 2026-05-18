@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 from pathlib import Path
 
-ROOT     = Path(__file__).parent.parent
+ROOT     = Path(__file__).parent.parent.parent
 FONT     = "/System/Library/Fonts/SFNS.ttf"
 BG_L     = np.array([12, 17, 32], dtype=float)
 WHITE    = (255, 255, 255)
@@ -55,7 +55,7 @@ def main():
     f_feat  = ImageFont.truetype(FONT, 14)
 
     # Watch
-    watch_raw    = Image.open(ROOT / "image-generators/screenshot_samford_watch.png").convert("RGB")
+    watch_raw    = Image.open(Path(__file__).parent / "Watch.png").convert("RGB")
     watch_h      = 420
     scale        = watch_h / watch_raw.height
     watch_w      = int(watch_raw.width * scale)

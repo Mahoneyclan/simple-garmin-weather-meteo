@@ -47,10 +47,22 @@ def main():
         INPUT_DIR / "View.png",
         OUTPUT_DIR / "preview_view_500x500.png",
     )
+
+    make_preview(
+        INPUT_DIR / "View with Watch.png",
+        OUTPUT_DIR / "preview_view_with_watch_500x500.png",
+    )
+
     make_preview(
         INPUT_DIR / "Forecast.png",
         OUTPUT_DIR / "preview_forecast_500x500.png",
     )
+
+    make_preview(
+        INPUT_DIR / "Forecast with Watch.png",
+        OUTPUT_DIR / "preview_forecast_with_watch_500x500.png",
+    )
+
 
 
 if __name__ == "__main__":
