@@ -4,9 +4,9 @@
 
 A clean, minimal weather widget for Garmin Fenix watches. Displays live conditions for two locations — your current GPS position and a configurable home location — with a single button toggle between them.
 
-| GPS Location | Home Location |
+| Current Conditions | Forecast |
 |:---:|:---:|
-| ![GPS view](image-generators/screenshot_gps.png) | ![Samford Valley view](image-generators/screenshot_samford.png) |
+| ![Current conditions](image-generators/Preview/View.png) | ![Forecast](image-generators/Preview/Forecast.png) |
 
 ## Features
 
