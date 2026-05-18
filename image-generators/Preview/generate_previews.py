@@ -1,13 +1,13 @@
 """
 Generates 500x500 store preview images from simulator screenshots.
 
-Input:  docs/Preview/View.png      — main watch screen (260x260)
-        docs/Preview/Forecast.png  — forecast screen   (260x260)
+Input:  image-generators/Preview/View.png      — main watch screen (260x260)
+        image-generators/Preview/Forecast.png  — forecast screen   (260x260)
 Output: store_assets/preview_view_500x500.png
         store_assets/preview_forecast_500x500.png
 
 Requirements: pip install pillow
-Run from repo root: python docs/Preview/generate_previews.py
+Run from repo root: python image-generators/Preview/generate_previews.py
 """
 
 from PIL import Image
