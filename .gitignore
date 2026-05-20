@@ -1,1 +1,22 @@
+# Connect IQ build output
 bin/
+*.prg
+*.prg.debug
+*.iq
+
+# IDE files
+.vscode/
+*.code-workspace
+.settings/
+.project
+.classpath
+
+# Developer key — do not commit
+developer_key
+developer_key.der
+
+# macOS
+.DS_Store
+**/.DS_Store
+.AppleDouble
+.LSOverride
