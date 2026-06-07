@@ -1,12 +1,12 @@
 # SimpleGlance Weather Widget (Open-Meteo)
 
-![Widget on Fenix 6 Pro](image-generators/Cover/Watch.png)
+![Widget on Fenix 6 Pro](store_assets/cover_500x500.png)
 
 A clean, minimal weather widget for Garmin Fenix watches. Displays live conditions for two locations — your current GPS position and a configurable home location — with a single button toggle between them.
 
-| Current Conditions | Hourly Forecast | Daily Forecast |
-|:---:|:---:|:---:|
-| ![Current conditions](image-generators/Preview/View.png) | ![Hourly forecast](image-generators/Preview/Forecast.png) | ![Daily forecast](image-generators/Preview/Forecast.png) |
+| Current Conditions | Hourly Forecast | Daily Forecast | Glance |
+|:---:|:---:|:---:|:---:|
+| ![Current conditions](store_assets/preview_current_500x500.png) | ![Hourly forecast](store_assets/preview_hourly_500x500.png) | ![Daily forecast](store_assets/preview_daily_500x500.png) | ![Glance](store_assets/preview_glance_500x500.png) |
 
 ## Features
 
