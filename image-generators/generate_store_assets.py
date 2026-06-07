@@ -166,13 +166,17 @@ def make_preview(src: Path, dst: Path, inner: int = 440) -> None:
 def generate_previews() -> None:
     src = HERE / "Preview"
     previews = [
-        ("View.png",                "preview_view_500x500.png"),
-        ("View with Watch.png",     "preview_view_with_watch_500x500.png"),
-        ("Forecast.png",            "preview_forecast_500x500.png"),
-        ("Forecast with Watch.png", "preview_forecast_with_watch_500x500.png"),
+        ("Watch.png",           "preview_current_500x500.png"),
+        ("Forecast hourly.png", "preview_hourly_500x500.png"),
+        ("Forecast Daily.png",  "preview_daily_500x500.png"),
+        ("Glance.png",          "preview_glance_500x500.png"),
     ]
     for name, out in previews:
-        make_preview(src / name, STORE / out)
+        p = src / name
+        if p.exists():
+            make_preview(p, STORE / out)
+        else:
+            print(f"Skipped {name} (not found)")
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
