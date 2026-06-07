@@ -11,11 +11,13 @@ A clean, minimal weather widget for Garmin Fenix watches. Displays live conditio
 ## Features
 
 - Radial watch face layout — temperature (top), rain (bottom-left), wind (bottom-right)
-- Current temperature with high/low flanking, feels-like, wind speed, gust, direction and rainfall
-- **Hourly forecast** — icon, temperature, precipitation (mm), wind speed and direction for Now + 3 hours
-- **Daily forecast** — icon, high/low temperature, wind and rainfall for Today + 4 days ahead
+- Temperature and feels-like temperature
+- Wind speed, gust, direction arrow and compass label
+- Rainfall (mm, current hour)
+- **Hourly forecast** — weather icon, temperature, rain (mm), wind speed and direction for Now + 3 hours ahead
+- **Daily forecast** — weather icon, high/low temperature, wind and rain for Today + 4 days ahead
 - Two-location toggle (GPS ↔ Home) with indicator dots showing active location
-- **Glance view** — two-column strip showing Home (left) and GPS (right) with condition indicator and temperature
+- **Glance view** — two-column strip showing Home (left) and GPS (right), each with condition indicator and current temperature
 - Background refresh on a configurable interval (15 / 30 / 60 min)
 - Offline cache — last known data shown instantly on launch
 - No API key required — powered by [Open-Meteo](https://open-meteo.com) (free, no sign-up)
@@ -28,8 +30,7 @@ Fenix 6, Fenix 6 Pro, Fenix 6S, Fenix 6S Pro
 
 | Button | Action |
 |--------|--------|
-| UP | Advance page: Current Conditions → Hourly → Daily → (back to start) |
-| DOWN | Retreat page: Current Conditions → Daily → Hourly → (back to start) |
+| UP / DOWN | Cycle through pages: Current Conditions → Hourly → Daily |
 | SELECT | Toggle between GPS location and home location |
 | MENU | Force refresh weather data |
 
