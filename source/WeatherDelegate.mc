@@ -14,16 +14,16 @@ class WeatherDelegate extends WatchUi.BehaviorDelegate {
         self.view = view;
     }
 
-    // UP button or swipe up: toggle between current conditions and forecast
+    // UP button or swipe up: advance page 0→1→2→0
     function onNextPage() as Boolean {
-        view.pageIndex = view.pageIndex == 0 ? 1 : 0;
+        view.pageIndex = (view.pageIndex + 1) % 3;
         WatchUi.requestUpdate();
         return true;
     }
 
-    // DOWN button or swipe down: toggle between current conditions and forecast
+    // DOWN button or swipe down: retreat page 0→2→1→0
     function onPreviousPage() as Boolean {
-        view.pageIndex = view.pageIndex == 0 ? 1 : 0;
+        view.pageIndex = (view.pageIndex + 2) % 3;
         WatchUi.requestUpdate();
         return true;
     }

@@ -1,12 +1,14 @@
 import Toybox.Application;
+import Toybox.Application.Storage;
 import Toybox.Graphics;
 import Toybox.Lang;
 import Toybox.Math;
 import Toybox.WatchUi;
 
-// Compact glance shown on the watch-face glance screen.
-// Displays GPS location temperature and wind only — home location is omitted
-// because glance space is too small to show both.
+// Glance strip: two columns separated by a vertical divider.
+// Left  = Home location   Right = GPS location
+// Each column shows a condition-coloured dot + temperature.
+// No bitmap loading — dc.drawBitmap() is not available in glance context.
 (:glance)
 class WeatherGlanceView extends WatchUi.GlanceView {
 
@@ -22,35 +24,56 @@ class WeatherGlanceView extends WatchUi.GlanceView {
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.clear();
 
-        // Read the last cached GPS weather written by WeatherView or BackgroundService.
-        var gps = Storage.getValue("gps_weather") as Array?;
-        if (gps != null && gps.size() >= 6) {
-            var temp = Math.round(gps[0] as Float).toNumber();
-            var name = gps[5] as String;
+        var home = Storage.getValue("home_weather") as Array?;
+        var gps  = Storage.getValue("gps_weather")  as Array?;
 
-            // Location name — top line
-            dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(0, (H * 0.10).toNumber(), Graphics.FONT_TINY,
-                name, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+        // Vertical centre divider
+        dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
+        dc.drawLine(W / 2, 0, W / 2, H);
 
-            // Temperature — large, left-aligned
-            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(0, (H * 0.55).toNumber(), Graphics.FONT_NUMBER_MEDIUM,
-                temp.format("%d") + "°C", Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+        drawColumn(dc, W, H, home, W / 4);      // left: Home
+        drawColumn(dc, W, H, gps,  W * 3 / 4);  // right: GPS
+    }
 
-            // Rain + wind speed + compass, stacked right-aligned
-            var speed = (gps[2] as Float).format("%.0f");
-            var wdeg  = (gps[4] as Number or Float).toFloat();
-            var rain  = gps.size() > 6 ? (gps[6] as Float).format("%.1f") + "mm" : "0.0mm";
-            dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(W - 2, (H * 0.55).toNumber(), Graphics.FONT_TINY,
-                rain + "\n" + speed + "km/h " + windDirName(wdeg),
-                Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
-        } else {
-            // No cached data yet — show placeholder until first fetch completes
-            dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(W / 2, H / 2, Graphics.FONT_SMALL, "Weather",
+    private function drawColumn(dc as Dc, W as Number, H as Number,
+                                data as Array?, cx as Number) as Void {
+        if (data == null || data.size() < 8) {
+            dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(cx, H / 2, Graphics.FONT_XTINY, "--",
                 Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            return;
         }
+
+        var wcode = data[7] as Number;
+        var temp  = Math.round(data[0] as Float).toNumber();
+        var name  = data[5] as String;
+
+        // Location name — centred, upper third
+        dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(cx, (H * 0.22).toNumber(), Graphics.FONT_XTINY, name,
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+
+        // Condition dot — colour encodes weather category
+        var dotR = H / 5;
+        dc.setColor(conditionColor(wcode), Graphics.COLOR_TRANSPARENT);
+        dc.fillCircle(cx - dotR - 3, (H * 0.65).toNumber(), dotR);
+
+        // Temperature
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(cx + 3, (H * 0.65).toNumber(), Graphics.FONT_SMALL,
+            temp.format("%d") + "°",
+            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+    }
+
+    // Returns a colour representing the weather category for the given WMO code.
+    private function conditionColor(code as Number) as Number {
+        if (code <= 1)                          { return 0xFFCC00; }  // clear — yellow
+        if (code <= 3)                          { return 0xAAAAAA; }  // cloudy — grey
+        if (code <= 48)                         { return 0x888888; }  // fog — dark grey
+        if (code <= 67)                         { return 0x4488FF; }  // rain/drizzle — blue
+        if (code <= 77)                         { return 0xCCEEFF; }  // snow — light blue
+        if (code <= 82)                         { return 0x2266CC; }  // showers — deep blue
+        if (code <= 86)                         { return 0xCCEEFF; }  // snow showers — light blue
+        return 0x9933CC;                                              // thunder — purple
     }
 }

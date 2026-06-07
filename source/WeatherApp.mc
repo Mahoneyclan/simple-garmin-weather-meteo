@@ -55,10 +55,13 @@ class WeatherApp extends Application.AppBase {
     }
 
     // Re-schedule background and refresh the view when the user changes settings
-    // in Garmin Connect (e.g. refresh rate or home location).
+    // in Garmin Connect (e.g. refresh rate or home location coordinates).
+    // fetchAll() is called so the new coordinates are geocoded immediately —
+    // a plain requestUpdate() only redraws and would leave the stale cached name.
     function onSettingsChanged() as Void {
         scheduleBackground();
         if (mainView != null) {
+            mainView.fetchAll();
             WatchUi.requestUpdate();
         }
     }

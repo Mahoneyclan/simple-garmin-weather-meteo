@@ -1,4 +1,52 @@
 <?xml version="1.0"?>
 <drawables>
     <bitmap id="LauncherIcon" filename="launcher_icon.png"/>
+
+    <!-- Met.no weather condition icons — 44×44 for centre icon, 22×22 (_sm) for forecast rows -->
+    <!-- Source: BleachDev/Rainy (GPL-3.0) -->
+    <bitmap id="clearsky_day"              filename="weather/clearsky_day.png"/>
+    <bitmap id="clearsky_night"            filename="weather/clearsky_night.png"/>
+    <bitmap id="fair_day"                  filename="weather/fair_day.png"/>
+    <bitmap id="fair_night"                filename="weather/fair_night.png"/>
+    <bitmap id="partlycloudy_day"          filename="weather/partlycloudy_day.png"/>
+    <bitmap id="partlycloudy_night"        filename="weather/partlycloudy_night.png"/>
+    <bitmap id="cloudy"                    filename="weather/cloudy.png"/>
+    <bitmap id="fog"                       filename="weather/fog.png"/>
+    <bitmap id="lightrain"                 filename="weather/lightrain.png"/>
+    <bitmap id="rain"                      filename="weather/rain.png"/>
+    <bitmap id="heavyrain"                 filename="weather/heavyrain.png"/>
+    <bitmap id="lightrainshowers_day"      filename="weather/lightrainshowers_day.png"/>
+    <bitmap id="lightrainshowers_night"    filename="weather/lightrainshowers_night.png"/>
+    <bitmap id="rainshowers_day"           filename="weather/rainshowers_day.png"/>
+    <bitmap id="rainshowers_night"         filename="weather/rainshowers_night.png"/>
+    <bitmap id="heavyrainshowers_day"      filename="weather/heavyrainshowers_day.png"/>
+    <bitmap id="heavyrainshowers_night"    filename="weather/heavyrainshowers_night.png"/>
+    <bitmap id="lightsnow"                 filename="weather/lightsnow.png"/>
+    <bitmap id="snow"                      filename="weather/snow.png"/>
+    <bitmap id="heavysnow"                 filename="weather/heavysnow.png"/>
+    <bitmap id="rainandthunder"            filename="weather/rainandthunder.png"/>
+    <bitmap id="heavyrainandthunder"       filename="weather/heavyrainandthunder.png"/>
+
+    <bitmap id="clearsky_day_sm"           filename="weather_sm/clearsky_day.png"/>
+    <bitmap id="clearsky_night_sm"         filename="weather_sm/clearsky_night.png"/>
+    <bitmap id="fair_day_sm"               filename="weather_sm/fair_day.png"/>
+    <bitmap id="fair_night_sm"             filename="weather_sm/fair_night.png"/>
+    <bitmap id="partlycloudy_day_sm"       filename="weather_sm/partlycloudy_day.png"/>
+    <bitmap id="partlycloudy_night_sm"     filename="weather_sm/partlycloudy_night.png"/>
+    <bitmap id="cloudy_sm"                 filename="weather_sm/cloudy.png"/>
+    <bitmap id="fog_sm"                    filename="weather_sm/fog.png"/>
+    <bitmap id="lightrain_sm"              filename="weather_sm/lightrain.png"/>
+    <bitmap id="rain_sm"                   filename="weather_sm/rain.png"/>
+    <bitmap id="heavyrain_sm"              filename="weather_sm/heavyrain.png"/>
+    <bitmap id="lightrainshowers_day_sm"   filename="weather_sm/lightrainshowers_day.png"/>
+    <bitmap id="lightrainshowers_night_sm" filename="weather_sm/lightrainshowers_night.png"/>
+    <bitmap id="rainshowers_day_sm"        filename="weather_sm/rainshowers_day.png"/>
+    <bitmap id="rainshowers_night_sm"      filename="weather_sm/rainshowers_night.png"/>
+    <bitmap id="heavyrainshowers_day_sm"   filename="weather_sm/heavyrainshowers_day.png"/>
+    <bitmap id="heavyrainshowers_night_sm" filename="weather_sm/heavyrainshowers_night.png"/>
+    <bitmap id="lightsnow_sm"              filename="weather_sm/lightsnow.png"/>
+    <bitmap id="snow_sm"                   filename="weather_sm/snow.png"/>
+    <bitmap id="heavysnow_sm"              filename="weather_sm/heavysnow.png"/>
+    <bitmap id="rainandthunder_sm"         filename="weather_sm/rainandthunder.png"/>
+    <bitmap id="heavyrainandthunder_sm"    filename="weather_sm/heavyrainandthunder.png"/>
 </drawables>

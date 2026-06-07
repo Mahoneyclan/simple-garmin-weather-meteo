@@ -19,14 +19,11 @@ import Toybox.WatchUi;
 //   2 = Forecast (GPS or Home, toggled by SELECT)
 class WeatherView extends WatchUi.View {
 
-    private const GPS_NAME as String = "GPS Location";
+    // GPS name is reverse-geocoded at runtime; this is the cold-start fallback.
+    private var gpsLocationName as String = "GPS Location";
 
     // Properties are stored as strings in resources/properties.xml because
     // Connect IQ settings only support alphaNumeric input for decimal values.
-    private function homeName() as String {
-        var v = Application.Properties.getValue("home_name");
-        return (v != null) ? v as String : "Home";
-    }
     private function homeLat() as Float {
         var v = Application.Properties.getValue("home_lat");
         return (v != null) ? (v as String).toFloat() : -27.3705f;
@@ -47,6 +44,8 @@ class WeatherView extends WatchUi.View {
     private var homeForecast as Array? = null;
     // Guard flag: prevents firing a second one-shot GPS request while one is already pending.
     private var gpsRequested as Boolean = false;
+    // Reverse-geocoded home name; seeded from cached data and refreshed each fetch.
+    private var homeLocationName as String = "Home";
 
     // Redraws the screen every 10 s while the widget is visible so elapsed
     // time and any background data arrival are reflected without user input.
@@ -65,6 +64,9 @@ class WeatherView extends WatchUi.View {
         homeData     = Storage.getValue("home_weather")  as Array?;
         gpsForecast  = Storage.getValue("gps_forecast")  as Array?;
         homeForecast = Storage.getValue("home_forecast") as Array?;
+        // Seed names from last geocoded results so the first draw is never "GPS Location" / "Home".
+        if (gpsData  != null && gpsData.size()  > 5 && gpsData[5]  != null) { gpsLocationName  = gpsData[5]  as String; }
+        if (homeData != null && homeData.size() > 5 && homeData[5]  != null) { homeLocationName = homeData[5] as String; }
         fetchAll();
     }
 
@@ -134,6 +136,7 @@ class WeatherView extends WatchUi.View {
         if (coords != null) {
             System.println("[WeatherView] fetchAll: GPS coords lat=" + coords[0] + " lon=" + coords[1]);
             fetchWeather(coords[0], coords[1], method(:onGpsResponse));
+            fetchLocationName(coords[0], coords[1], method(:onGpsLocationName));
         } else if (!gpsRequested) {
             System.println("[WeatherView] fetchAll: requesting one-shot GPS location");
             gpsRequested = true;
@@ -145,9 +148,86 @@ class WeatherView extends WatchUi.View {
         }
     }
 
-    // Fetch weather for the user-configured home location.
+    // Fetch weather and reverse-geocoded name for the user-configured home location.
     private function fetchHome() as Void {
-        fetchWeather(homeLat(), homeLon(), method(:onHomeResponse));
+        var lat = homeLat();
+        var lon = homeLon();
+        fetchWeather(lat, lon, method(:onHomeResponse));
+        fetchLocationName(lat, lon, method(:onLocationName));
+    }
+
+    private function fetchLocationName(lat as Float or Double, lon as Float or Double, callback as Method) as Void {
+        Communications.makeWebRequest(
+            "https://nominatim.openstreetmap.org/reverse",
+            {
+                "lat"    => lat.format("%.4f"),
+                "lon"    => lon.format("%.4f"),
+                "format" => "json",
+                "zoom"   => "14"
+            },
+            {
+                :method  => Communications.HTTP_REQUEST_METHOD_GET,
+                :headers => { "User-Agent" => "SimpleGlanceWeatherWidget/1.0" }
+            },
+            callback
+        );
+    }
+
+    // Extracts the most specific place name from a Nominatim reverse-geocoding response.
+    private function parseLocationName(data as Dictionary) as String? {
+        var addr = data["address"] as Dictionary?;
+        var name = null;
+        if (addr != null) {
+            name = addr["suburb"];
+            if (name == null) { name = addr["town"]; }
+            if (name == null) { name = addr["city"]; }
+            if (name == null) { name = addr["village"]; }
+            if (name == null) { name = addr["hamlet"]; }
+        }
+        if (name == null) {
+            var display = data["display_name"] as String?;
+            if (display != null) {
+                var comma = display.find(",") as Number?;
+                name = (comma != null) ? display.substring(0, comma) : display;
+            }
+        }
+        return name as String?;
+    }
+
+    function onLocationName(responseCode as Number, data as Dictionary?) as Void {
+        if (responseCode == 200 && data != null) {
+            var name = parseLocationName(data);
+            if (name != null) {
+                homeLocationName = name;
+                if (homeData != null && homeData.size() > 5) {
+                    homeData[5] = homeLocationName;
+                    Storage.setValue("home_weather", homeData);
+                    if (homeForecast != null && homeForecast.size() > 0) {
+                        homeForecast[0] = homeLocationName;
+                        Storage.setValue("home_forecast", homeForecast);
+                    }
+                    WatchUi.requestUpdate();
+                }
+            }
+        }
+    }
+
+    function onGpsLocationName(responseCode as Number, data as Dictionary?) as Void {
+        if (responseCode == 200 && data != null) {
+            var name = parseLocationName(data);
+            if (name != null) {
+                gpsLocationName = name;
+                if (gpsData != null && gpsData.size() > 5) {
+                    gpsData[5] = gpsLocationName;
+                    Storage.setValue("gps_weather", gpsData);
+                    if (gpsForecast != null && gpsForecast.size() > 0) {
+                        gpsForecast[0] = gpsLocationName;
+                        Storage.setValue("gps_forecast", gpsForecast);
+                    }
+                    WatchUi.requestUpdate();
+                }
+            }
+        }
     }
 
     // Fire an Open-Meteo request with current conditions plus hourly/daily
@@ -159,11 +239,11 @@ class WeatherView extends WatchUi.View {
             {
                 "latitude"        => lat.format("%.4f"),
                 "longitude"       => lon.format("%.4f"),
-                "current"         => "temperature_2m,apparent_temperature,wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation",
-                "hourly"          => "temperature_2m,precipitation_probability",
-                "daily"           => "temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_direction_10m_dominant,precipitation_sum",
+                "current"         => "temperature_2m,apparent_temperature,wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation,weather_code,is_day",
+                "hourly"          => "temperature_2m,precipitation_probability,weather_code,precipitation,wind_speed_10m,wind_direction_10m",
+                "daily"           => "temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_direction_10m_dominant,precipitation_sum,weather_code",
                 "wind_speed_unit" => "kmh",
-                "forecast_days"   => "4",
+                "forecast_days"   => "5",
                 "timezone"        => "auto"
             },
             { :method => Communications.HTTP_REQUEST_METHOD_GET },
@@ -177,6 +257,7 @@ class WeatherView extends WatchUi.View {
             var pos = info.position.toDegrees();
             Storage.setValue("gps_coords", pos);
             fetchWeather(pos[0], pos[1], method(:onGpsResponse));
+            fetchLocationName(pos[0], pos[1], method(:onGpsLocationName));
         }
         WatchUi.requestUpdate();
     }
@@ -184,9 +265,9 @@ class WeatherView extends WatchUi.View {
     function onGpsResponse(responseCode as Number, data as Dictionary?) as Void {
         System.println("[WeatherView] onGpsResponse: responseCode=" + responseCode);
         if (responseCode == 200 && data != null) {
-            gpsData = parseWeather(data, GPS_NAME);
+            gpsData = parseWeather(data, gpsLocationName);
             Storage.setValue("gps_weather", gpsData);
-            gpsForecast = parseForecast(data, GPS_NAME, gpsData);
+            gpsForecast = parseForecast(data, gpsLocationName, gpsData);
             Storage.setValue("gps_forecast", gpsForecast);
             WatchUi.requestUpdate();
         } else if (responseCode <= 0 && retryCount > 0) {
@@ -201,9 +282,9 @@ class WeatherView extends WatchUi.View {
     function onHomeResponse(responseCode as Number, data as Dictionary?) as Void {
         System.println("[WeatherView] onHomeResponse: responseCode=" + responseCode);
         if (responseCode == 200 && data != null) {
-            homeData = parseWeather(data, homeName());
+            homeData = parseWeather(data, homeLocationName);
             Storage.setValue("home_weather", homeData);
-            homeForecast = parseForecast(data, homeName(), homeData);
+            homeForecast = parseForecast(data, homeLocationName, homeData);
             Storage.setValue("home_forecast", homeForecast);
             WatchUi.requestUpdate();
         } else {
@@ -211,7 +292,7 @@ class WeatherView extends WatchUi.View {
         }
     }
 
-    // Returns [temp, feelsLike, windSpeed, windGust, windDeg, name, rain]
+    // Returns [temp, feelsLike, windSpeed, windGust, windDeg, name, rain, weatherCode, isDay]
     // windSpeed and windGust are already in km/h from Open-Meteo (wind_speed_unit=kmh)
     private function parseWeather(data as Dictionary, name as String) as Array {
         var cur  = data["current"] as Dictionary;
@@ -219,8 +300,12 @@ class WeatherView extends WatchUi.View {
         if (gust == null) { gust = cur["wind_speed_10m"]; } // gust not always reported
         var deg  = cur["wind_direction_10m"];
         if (deg == null) { deg = 0; }
-        var rain = cur["precipitation"];
+        var rain  = cur["precipitation"];
         if (rain == null) { rain = 0.0f; }
+        var wcode = cur["weather_code"];
+        if (wcode == null) { wcode = 0; }
+        var isDay = cur["is_day"];
+        if (isDay == null) { isDay = 1; }
         return [
             cur["temperature_2m"],       // 0: °C
             cur["apparent_temperature"], // 1: °C
@@ -228,26 +313,32 @@ class WeatherView extends WatchUi.View {
             gust,                        // 3: km/h
             deg,                         // 4: degrees (0=N, 90=E, ...)
             name,                        // 5: location name
-            rain                         // 6: mm
+            rain,                        // 6: mm
+            wcode,                       // 7: WMO weather code
+            isDay                        // 8: 1=day, 0=night
         ] as Array;
     }
 
     // Returns a forecast array or null if data is missing.
     //
     // Structure:
-    //   [0] name        String
-    //   [1] hLabels     Array<String>[4]  hour labels: "Now", "+1h", "+2h", "+3h"
-    //   [2] hTemps      Array<Number>[4]  hourly temps °C
-    //   [3] hRain       Array<Number>[4]  hourly precipitation probability %
-    //   [4] dNames      Array<String>[4]  day labels: "Today", "Mon", "Tue", "Wed"
-    //   [5] dMaxT       Array<Number>[4]  daily max temp °C
-    //   [6] dMinT       Array<Number>[4]  daily min temp °C
-    //   [7] dWind       Array<Float>[4]   daily max wind km/h
-    //   [8] dDir        Array<Number>[4]  daily dominant wind direction degrees
-    //   [9] dRain       Array<Float>[4]   daily precipitation sum mm
+    //   [0]  name       String
+    //   [1]  hLabels    Array<String>[4]   hour labels: "Now", "Xp", ...
+    //   [2]  hTemps     Array<Number>[4]   hourly temps °C
+    //   [3]  hRainProb  Array<Number>[4]   hourly precipitation probability %
+    //   [4]  dNames     Array<String>[5]   day labels: "Today", "Mon", ...
+    //   [5]  dMaxT      Array<Number>[5]   daily max temp °C
+    //   [6]  dMinT      Array<Number>[5]   daily min temp °C
+    //   [7]  dWind      Array<Float>[5]    daily max wind km/h
+    //   [8]  dDir       Array<Number>[5]   daily dominant wind direction degrees
+    //   [9]  dRain      Array<Float>[5]    daily precipitation sum mm
+    //   [10] dCond      Array<Number>[5]   daily WMO weather code
+    //   [11] hWcode     Array<Number>[4]   hourly WMO weather code
+    //   [12] hPrecip    Array<Float>[4]    hourly precipitation mm
+    //   [13] hWindSpd   Array<Float>[4]    hourly wind speed km/h
+    //   [14] hWindDir   Array<Number>[4]   hourly wind direction degrees
     //
-    // With no past_days, hourly[0] = today 00:00 local, so current hour = index currentHour.
-    // Daily index 0=today, 1=tomorrow, 2=+2d, 3=+3d.
+    // Daily index 0=today, 1=tomorrow, ..., 4=+4d (5 days total).
     private function parseForecast(data as Dictionary, name as String, current as Array?) as Array? {
         var hourly = data["hourly"] as Dictionary?;
         var daily  = data["daily"]  as Dictionary?;
@@ -257,22 +348,36 @@ class WeatherView extends WatchUi.View {
         var currentHour = info.hour as Number;
         var hourIdx     = currentHour;
 
-        var hourlyTemps = hourly["temperature_2m"]           as Array;
-        var hourlyRain  = hourly["precipitation_probability"] as Array;
+        var hourlyTemps   = hourly["temperature_2m"]            as Array;
+        var hourlyWcode   = hourly["weather_code"]              as Array?;
+        var hourlyPrecip  = hourly["precipitation"]             as Array?;
+        var hourlyWSpd    = hourly["wind_speed_10m"]            as Array?;
+        var hourlyWDir    = hourly["wind_direction_10m"]        as Array?;
 
-        var hLabels = new Array<String>[4];
-        var hTemps  = new Array<Number>[4];
-        var hRain   = new Array<Number>[4];
+        var hLabels   = new Array<String>[4];
+        var hTemps    = new Array<Number>[4];
+        var hWcode    = new Array<Number>[4];
+        var hPrecip   = new Array<Float>[4];
+        var hWindSpd  = new Array<Float>[4];
+        var hWindDir  = new Array<Number>[4];
 
         for (var i = 0; i < 4; i++) {
             var idx = hourIdx + i;
             var hr  = (currentHour + i) % 24;
-            hLabels[i] = (i == 0) ? "Now" : hr.format("%02d");
-            // "Now" temp comes from live current data so it matches the current-conditions page
-            hTemps[i] = (i == 0 && current != null)
+            if (i == 0) {
+                hLabels[i] = "Now";
+            } else {
+                var h12 = hr % 12;
+                if (h12 == 0) { h12 = 12; }
+                hLabels[i] = h12.format("%d") + (hr < 12 ? "a" : "p");
+            }
+            hTemps[i]    = (i == 0 && current != null)
                 ? Math.round(current[0] as Float).toNumber()
                 : Math.round(hourlyTemps[idx] as Float).toNumber();
-            hRain[i] = (hourlyRain[idx] != null) ? (hourlyRain[idx] as Number) : 0;
+            hWcode[i]    = (hourlyWcode  != null && hourlyWcode[idx]   != null) ? (hourlyWcode[idx]  as Number) : 0;
+            hPrecip[i]   = (hourlyPrecip != null && hourlyPrecip[idx]  != null) ? (hourlyPrecip[idx] as Float)  : 0.0f;
+            hWindSpd[i]  = (hourlyWSpd   != null && hourlyWSpd[idx]    != null) ? (hourlyWSpd[idx]   as Float)  : 0.0f;
+            hWindDir[i]  = (hourlyWDir   != null && hourlyWDir[idx]    != null) ? (hourlyWDir[idx]   as Number) : 0;
         }
 
         var dailyMax  = daily["temperature_2m_max"]          as Array;
@@ -280,22 +385,22 @@ class WeatherView extends WatchUi.View {
         var dailyWind = daily["wind_speed_10m_max"]          as Array;
         var dailyDir  = daily["wind_direction_10m_dominant"] as Array;
         var dailyRain = daily["precipitation_sum"]           as Array;
+        var dailyCond = daily["weather_code"]                as Array?;
 
-        var dNames = new Array<String>[4];
-        var dMaxT  = new Array<Number>[4];
-        var dMinT  = new Array<Number>[4];
-        var dWind  = new Array<Float>[4];
-        var dDir   = new Array<Number>[4];
-        var dRain  = new Array<Float>[4];
+        var dNames = new Array<String>[5];
+        var dMaxT  = new Array<Number>[5];
+        var dMinT  = new Array<Number>[5];
+        var dWind  = new Array<Float>[5];
+        var dDir   = new Array<Number>[5];
+        var dRain  = new Array<Float>[5];
+        var dCond  = new Array<Number>[5];
 
-        // day_of_week: 1=Sun, 2=Mon, ..., 7=Sat
         var todayDow = info.day_of_week as Number;
-        var dayAbbr  = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]; // 0-indexed
+        var dayAbbr  = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-        for (var i = 0; i < 4; i++) {
+        for (var i = 0; i < 5; i++) {
             if (i == 0) { dNames[i] = "Today"; }
             else {
-                // i=1→tomorrow, formula: (todayDow + i - 1) % 7 → 0-indexed dow
                 var dow = (todayDow + i - 1) % 7;
                 dNames[i] = dayAbbr[dow];
             }
@@ -304,9 +409,11 @@ class WeatherView extends WatchUi.View {
             dWind[i] = (dailyWind[i] != null) ? (dailyWind[i] as Float)  : 0.0f;
             dDir[i]  = (dailyDir[i]  != null) ? (dailyDir[i]  as Number) : 0;
             dRain[i] = (dailyRain[i] != null) ? (dailyRain[i] as Float)  : 0.0f;
+            dCond[i] = (dailyCond != null && dailyCond[i] != null) ? (dailyCond[i] as Number) : 0;
         }
 
-        return [name, hLabels, hTemps, hRain, dNames, dMaxT, dMinT, dWind, dDir, dRain] as Array;
+        return [name, hLabels, hTemps, null, dNames, dMaxT, dMinT, dWind, dDir, dRain,
+                dCond, hWcode, hPrecip, hWindSpd, hWindDir] as Array;
     }
 
     // ---------------------------------------------------------------
@@ -322,7 +429,9 @@ class WeatherView extends WatchUi.View {
         var H = dc.getHeight();
 
         if (pageIndex == 1) {
-            drawForecastPage(dc, W, H);
+            drawHourlyPage(dc, W, H);
+        } else if (pageIndex == 2) {
+            drawDailyPage(dc, W, H);
         } else {
             var weather = locationIndex == 0 ? gpsData : homeData;
             if (weather == null) {
@@ -339,10 +448,10 @@ class WeatherView extends WatchUi.View {
         drawIndicator(dc, W, H);
     }
 
-    // Layout: three equal 120° radial sectors from the centre.
-    //   Top sector    (300°–60°)  : temperature + feels like
-    //   Bottom-left   (180°–300°) : rain
-    //   Bottom-right  (60°–180°)  : wind speed, gust, direction
+    // Layout: three sectors divided by clock-hand lines.
+    //   Top semicircle  (9→12→3)  : location name, H, current temp, L, feels-like
+    //   Bottom-right quadrant (3→6): wind speed, gust + direction
+    //   Bottom-left  quadrant (6→9): rain amount + probability
     private function drawWeather(dc as Dc, W as Number, H as Number, w as Array) as Void {
         var temp  = Math.round(w[0] as Float).toNumber();
         var feels = Math.round(w[1] as Float).toNumber();
@@ -352,197 +461,252 @@ class WeatherView extends WatchUi.View {
         var name  = w[5] as String;
         var rain  = w.size() > 6 ? (w[6] as Float) : 0.0f;
 
+        // Pull rain probability and today's H/L from the forecast cache.
+        var forecast = locationIndex == 0 ? gpsForecast : homeForecast;
+        var rainProb = 0;
+        var highTemp = temp;
+        var lowTemp  = temp;
+        if (forecast != null) {
+            var hRain = forecast[3] as Array?;
+            if (hRain != null && hRain.size() > 0) { rainProb = hRain[0] as Number; }
+            var dMaxT = forecast[5] as Array?;
+            var dMinT = forecast[6] as Array?;
+            if (dMaxT != null && dMaxT.size() > 0) { highTemp = dMaxT[0] as Number; }
+            if (dMinT != null && dMinT.size() > 0) { lowTemp  = dMinT[0] as Number; }
+        }
+
         var cx = W / 2;
         var cy = H / 2;
 
         // ── Radial dividing lines ────────────────────────────────────
-        // Three lines from centre at 60°, 180° (straight down), 300° from top.
-        // R = 92% of half-width keeps lines clear of the bezel.
-        var R  = (W * 0.46f).toNumber();
-        var dx = (R * 0.866f).toNumber(); // R × sin(60°)
-        var dy = (R * 0.500f).toNumber(); // R × cos(60°)
+        // Three lines at 2:30 (75°), 6:00 (180°), 9:30 (285°) clock positions.
+        // Creates temp sector (9:30→2:30 through 12) and two lower sectors.
+        // sin(75°)=0.966, cos(75°)=0.259; circR=30, R=92% half-width.
+        var R    = (W * 0.46f).toNumber();
+        var dx   = (R  * 0.966f).toNumber();
+        var dy   = (R  * 0.259f).toNumber();
+        var gapX = (30 * 0.966f).toNumber();
+        var gapY = (30 * 0.259f).toNumber();
         dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
-        dc.drawLine(cx, cy, cx + dx, cy - dy); // upper-right (60°)
-        dc.drawLine(cx, cy, cx,      cy + R);  // straight down (180°)
-        dc.drawLine(cx, cy, cx - dx, cy - dy); // upper-left (300°)
+        dc.drawLine(cx + gapX, cy - gapY, cx + dx,  cy - dy); // 2:30 (75°)
+        dc.drawLine(cx,        cy + 30,   cx,        cy + R);  // 6:00 (180°)
+        dc.drawLine(cx - gapX, cy - gapY, cx - dx,  cy - dy); // 9:30 (285°)
 
-        // ── TOP SECTOR: Temperature ──────────────────────────────────
+        // ── TOP SEMICIRCLE: Temperature ──────────────────────────────
         dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
         dc.drawText(cx, (H * 0.10).toNumber(), Graphics.FONT_TINY,
             name, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
 
-        // FONT_NUMBER_MEDIUM only supports digits; °C drawn separately as superscript
+        // Current temp — FONT_NUMBER_MEDIUM digits-only; °C as superscript.
+        // H: and L: are drawn flanking the temp block at the same baseline.
         var tempStr = temp.format("%d");
         var numW    = dc.getTextWidthInPixels(tempStr, Graphics.FONT_NUMBER_MEDIUM);
         var unitW   = dc.getTextWidthInPixels("°C", Graphics.FONT_SMALL);
         var numX    = (W - numW - unitW) / 2;
-        var numY    = (H * 0.23).toNumber();
+        var numY    = (H * 0.25).toNumber();
+        dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(numX - 6, numY, Graphics.FONT_TINY,
+            "H:" + highTemp.format("%d") + "°",
+            Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
+        dc.drawText(numX + numW + unitW + 6, numY, Graphics.FONT_TINY,
+            "L:" + lowTemp.format("%d") + "°",
+            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
         dc.drawText(numX, numY, Graphics.FONT_NUMBER_MEDIUM,
             tempStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
         dc.drawText(numX + numW + 2, numY - (H * 0.05).toNumber(), Graphics.FONT_SMALL,
             "°C", Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
 
+        // ── CENTRE: Condition icon in a dark charcoal circle ─────────
+        var wcode  = w.size() > 7 ? (w[7] as Number) : 0;
+        var isDay  = w.size() > 8 ? (w[8] as Number) != 0 : true;
+        var icon   = wmoIcon(wcode, isDay);
+        var iW     = icon.getWidth();
+        var iH     = icon.getHeight();
+        var circR  = (iW > iH ? iW : iH) / 2 + 8;
+        dc.setColor(0x1E1E1E, Graphics.COLOR_TRANSPARENT);
+        dc.fillCircle(cx, cy, circR);
+        dc.setColor(0x484848, Graphics.COLOR_TRANSPARENT);
+        // Arc from 2:30 to 9:30 through 6 — Garmin angles: 0°=right, CCW positive.
+        // 2:30 clock (75° from top) = Garmin 15°; 9:30 clock (285°) = Garmin 165°.
+        // CLOCKWISE from 15→0→270→165 sweeps through 6 o'clock (bottom).
+        dc.drawArc(cx, cy, circR, Graphics.ARC_CLOCKWISE, 15, 165);
+        dc.drawBitmap(cx - iW / 2, cy - iH / 2, icon);
+
+        // Drawn after the circle so it renders on top — sits just above the icon.
         dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(cx, (H * 0.36).toNumber(), Graphics.FONT_XTINY,
+        dc.drawText(cx, (H * 0.37).toNumber(), Graphics.FONT_XTINY,
             "Feels " + feels.format("%d") + "°C",
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
 
-        // ── BOTTOM-LEFT SECTOR: Rain ─────────────────────────────────
-        // Sector centre at angle 240° from top, positioned at ~27% of width
-        var rainX = (W * 0.27).toNumber();
+        // ── BOTTOM-LEFT QUADRANT (6→9): Rain ─────────────────────────
+        // Centre of quadrant is at roughly (W*0.25, H*0.73).
+        var rainX = (W * 0.25).toNumber();
         dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(rainX, (H * 0.52).toNumber(), Graphics.FONT_TINY, "RAIN",
-            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        dc.drawText((W * 0.06).toNumber(), (H * 0.58).toNumber() - 5, Graphics.FONT_TINY, "RAIN",
+            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(rainX, (H * 0.64).toNumber(), Graphics.FONT_SMALL,
+        dc.drawText(rainX, (H * 0.68).toNumber(), Graphics.FONT_SMALL,
             rain.format("%.1f") + " mm",
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-
-        // ── BOTTOM-RIGHT SECTOR: Wind ────────────────────────────────
-        // Sector centre at angle 120° from top, positioned at ~73% of width
-        var windX = (W * 0.73).toNumber();
         dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(windX, (H * 0.52).toNumber(), Graphics.FONT_TINY, "WIND",
+        dc.drawText(rainX, (H * 0.77).toNumber(), Graphics.FONT_XTINY,
+            "prob " + rainProb.format("%d") + "%",
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+
+        // ── BOTTOM-RIGHT QUADRANT (3→6): Wind ────────────────────────
+        // Centre of quadrant is at roughly (W*0.75, H*0.73).
+        var windX = (W * 0.75).toNumber();
+        dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
+        dc.drawText((W * 0.94).toNumber(), (H * 0.58).toNumber() - 5, Graphics.FONT_TINY, "WIND",
+            Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(windX, (H * 0.61).toNumber(), Graphics.FONT_SMALL,
+        dc.drawText(windX, (H * 0.68).toNumber(), Graphics.FONT_SMALL,
             speed.format("%.0f") + " km/h",
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(windX, (H * 0.70).toNumber(), Graphics.FONT_TINY,
-            "gust " + gust.format("%.0f"),
+        dc.drawText(windX, (H * 0.77).toNumber(), Graphics.FONT_XTINY,
+            "gust " + gust.format("%.0f") + "  " + windDirName(wdeg),
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-
-        // Arrow + compass label centred together under the wind speed text (windX).
-        var arrowSize  = (H * 0.07).toNumber();
-        var arrowY     = (H * 0.82).toNumber();
-        var half       = arrowSize / 2;
-        var compassStr = windDirName(wdeg);
-        var textW      = dc.getTextWidthInPixels(compassStr, Graphics.FONT_TINY);
-        var totalW     = arrowSize + 4 + textW;
-        var startX     = windX - totalW / 2;
-        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-        dc.fillPolygon(windArrow((startX + half).toFloat(), arrowY.toFloat(),
-                                  wdeg + 180.0f, arrowSize));
-        dc.drawText(startX + arrowSize + 4, arrowY, Graphics.FONT_TINY,
-            compassStr,
-            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
     }
 
     // ---------------------------------------------------------------
-    // Forecast page
+    // Screen 2 — Hourly forecast (4 columns: Now +1h +2h +3h)
     // ---------------------------------------------------------------
 
-    private function drawForecastPage(dc as Dc, W as Number, H as Number) as Void {
+    private function drawHourlyPage(dc as Dc, W as Number, H as Number) as Void {
         var forecast = locationIndex == 0 ? gpsForecast : homeForecast;
-        var current  = locationIndex == 0 ? gpsData     : homeData;
+        if (forecast == null) { drawCentered(dc, W, H, "Loading\nforecast..."); return; }
 
-        if (forecast == null) {
-            drawCentered(dc, W, H, "Loading\nforecast...");
-            return;
-        }
+        var name     = forecast[0]  as String;
+        var hLabels  = forecast[1]  as Array;
+        var hTemps   = forecast[2]  as Array;
+        var hWcode   = forecast.size() > 11 ? forecast[11] as Array? : null;
+        var hPrecip   = forecast.size() > 12 ? forecast[12] as Array? : null;
+        var hWindSpd  = forecast.size() > 13 ? forecast[13] as Array? : null;
+        var hWindDir  = forecast.size() > 14 ? forecast[14] as Array? : null;
 
-        var name    = forecast[0] as String;
-        var hLabels = forecast[1] as Array;
-        var hTemps  = forecast[2] as Array;
-        var hRain   = forecast[3] as Array;
-        var dNames  = forecast[4] as Array;
-        var dMaxT   = forecast[5] as Array;
-        var dMinT   = forecast[6] as Array;
-        var dWind   = forecast[7] as Array;
-        var dDir    = forecast[8] as Array;
-        var dRain   = forecast[9] as Array;
-
-        // Override "Now" temp with live current data if available
-        var nowTemp = (current != null)
-            ? Math.round(current[0] as Float).toNumber()
-            : (hTemps[0] as Number);
-
-        // 4px downward nudge so the title clears the top of the circular bezel.
         var yOff = 4;
 
-        // --- Location name ---
         dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
         dc.drawText(W / 2, (H * 0.07).toNumber() + yOff, Graphics.FONT_TINY,
             name, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
 
-        // --- Top separator ---
-        // Narrowed to 22%-78%: at y=H*0.13 the circle half-width is only ~72px (centre±72).
         dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
         dc.drawLine((W * 0.22).toNumber(), (H * 0.13).toNumber() + yOff,
                     (W * 0.78).toNumber(), (H * 0.13).toNumber() + yOff);
 
-        // --- Hourly strip: 4 evenly-spaced columns (Now, +1h, +2h, +3h) ---
-        // Columns at 20%, 40%, 60%, 80% — keeps content inside the circle at the top of the screen.
-        var hourlyY0 = (H * 0.20).toNumber() + yOff; // hour labels
-        var hourlyY1 = (H * 0.28).toNumber() + yOff; // temperatures
-        var hourlyY2 = (H * 0.35).toNumber() + yOff; // rain probability
+        // 4 columns pulled inward to clear the circular bezel at the bottom rows
+        var colX = new Array<Number>[4];
+        colX[0] = (W * 0.18).toNumber();
+        colX[1] = (W * 0.38).toNumber();
+        colX[2] = (W * 0.62).toNumber();
+        colX[3] = (W * 0.82).toNumber();
+
+        var yLabel = (H * 0.16).toNumber() + yOff;
+        var yIcon  = (H * 0.27).toNumber() + yOff;
+        var yTemp  = (H * 0.40).toNumber() + yOff;
+        var yPrec  = (H * 0.52).toNumber() + yOff;
+        var yWind  = (H * 0.63).toNumber() + yOff;
+        var yDir   = (H * 0.74).toNumber() + yOff;
 
         for (var i = 0; i < 4; i++) {
-            var cx = (W * (0.20 + i * 0.20)).toNumber();
-            var temp = (i == 0) ? nowTemp : (hTemps[i] as Number);
+            var cx = colX[i] as Number;
 
-            // Hour label — "Now" in white, others in gray
+            // Hour label
             dc.setColor((i == 0) ? Graphics.COLOR_WHITE : Graphics.COLOR_LT_GRAY,
                         Graphics.COLOR_TRANSPARENT);
-            dc.drawText(cx, hourlyY0, Graphics.FONT_TINY,
+            dc.drawText(cx, yLabel, Graphics.FONT_TINY,
                 hLabels[i] as String,
                 Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
 
+            // Condition icon — use current hour's is_day for "Now", daytime for rest
+            var wcode  = (hWcode != null) ? (hWcode[i] as Number) : 0;
+            var isDay  = true;
+            var rowIcon = wmoIconSm(wcode, isDay);
+            dc.drawBitmap(cx - rowIcon.getWidth() / 2, yIcon - rowIcon.getHeight() / 2, rowIcon);
+
             // Temperature
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(cx, hourlyY1, Graphics.FONT_TINY,
-                temp.format("%d") + "°",
+            dc.drawText(cx, yTemp, Graphics.FONT_TINY,
+                (hTemps[i] as Number).format("%d") + "°",
                 Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
 
-            // Rain probability
+            // Precipitation mm
             dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(cx, hourlyY2, Graphics.FONT_XTINY,
-                (hRain[i] as Number).format("%d") + "%",
+            var precip = (hPrecip != null) ? (hPrecip[i] as Float) : 0.0f;
+            dc.drawText(cx, yPrec, Graphics.FONT_XTINY,
+                precip.format("%.1f") + "mm",
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+
+            // Wind speed then direction on separate lines
+            var wspd = (hWindSpd != null) ? (hWindSpd[i] as Float) : 0.0f;
+            var wdir = (hWindDir != null) ? (hWindDir[i] as Number).toFloat() : 0.0f;
+            dc.drawText(cx, yWind, Graphics.FONT_XTINY,
+                wspd.format("%.0f") + "km",
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.drawText(cx, yDir, Graphics.FONT_XTINY,
+                windDirName(wdir),
                 Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         }
+    }
 
-        // --- Mid separator ---
+    // ---------------------------------------------------------------
+    // Screen 3 — Daily forecast (5 days, centred vertically)
+    // ---------------------------------------------------------------
+
+    private function drawDailyPage(dc as Dc, W as Number, H as Number) as Void {
+        var forecast = locationIndex == 0 ? gpsForecast : homeForecast;
+        if (forecast == null) { drawCentered(dc, W, H, "Loading\nforecast..."); return; }
+
+        var name   = forecast[0]  as String;
+        var dNames = forecast[4]  as Array;
+        var dMaxT  = forecast[5]  as Array;
+        var dMinT  = forecast[6]  as Array;
+        var dRain  = forecast[9]  as Array;
+        var dCond  = forecast.size() > 10 ? forecast[10] as Array? : null;
+
+        var yOff = 4;
+
+        dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(W / 2, (H * 0.07).toNumber() + yOff, Graphics.FONT_TINY,
+            name, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+
         dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
-        dc.drawLine((W * 0.1).toNumber(), (H * 0.41).toNumber() + yOff,
-                    (W * 0.9).toNumber(), (H * 0.41).toNumber() + yOff);
+        dc.drawLine((W * 0.22).toNumber(), (H * 0.13).toNumber() + yOff,
+                    (W * 0.78).toNumber(), (H * 0.13).toNumber() + yOff);
 
-        // --- Daily rows: 4 rows (Today, +1d, +2d, +3d) ---
-        // 4 columns: day | temp | wind | rain — redistributed to fit within circular bezel.
-        var xDay  = (W * 0.14).toNumber();
-        var xTemp = (W * 0.38).toNumber();
-        var xWind = (W * 0.57).toNumber();
-        var xRain = (W * 0.86).toNumber();
-        var rowYs = new Array<Number>[4];
-        rowYs[0] = (H * 0.47).toNumber() + yOff;
-        rowYs[1] = (H * 0.57).toNumber() + yOff;
-        rowYs[2] = (H * 0.67).toNumber() + yOff;
-        rowYs[3] = (H * 0.77).toNumber() + yOff;
+        // 5 rows evenly spaced from H*0.20 to H*0.88, centred on screen
+        var xDay  = (W * 0.10).toNumber();
+        var xIcon = (W * 0.36).toNumber();
+        var xTemp = (W * 0.62).toNumber() - 5;
+        var xRain = (W * 0.88).toNumber();
+        var rowYs = new Array<Number>[5];
+        rowYs[0] = (H * 0.20).toNumber() + yOff;
+        rowYs[1] = (H * 0.34).toNumber() + yOff;
+        rowYs[2] = (H * 0.48).toNumber() + yOff;
+        rowYs[3] = (H * 0.62).toNumber() + yOff;
+        rowYs[4] = (H * 0.76).toNumber() + yOff;
 
-        for (var i = 0; i < 4; i++) {
+        for (var i = 0; i < 5; i++) {
             var y = rowYs[i] as Number;
 
-            // Day name — "Today" in white, others in gray
             dc.setColor((i == 0) ? Graphics.COLOR_WHITE : Graphics.COLOR_LT_GRAY,
                         Graphics.COLOR_TRANSPARENT);
             dc.drawText(xDay, y, Graphics.FONT_XTINY,
                 dNames[i] as String,
                 Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
 
-            // Max/min temp
+            if (dCond != null) {
+                var rowIcon = wmoIconSm(dCond[i] as Number, true);
+                dc.drawBitmap(xIcon - rowIcon.getWidth() / 2, y - rowIcon.getHeight() / 2, rowIcon);
+            }
+
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
             dc.drawText(xTemp, y, Graphics.FONT_XTINY,
                 (dMaxT[i] as Number).format("%d") + "/" + (dMinT[i] as Number).format("%d") + "°",
                 Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
 
-            // Wind speed + compass direction
-            dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(xWind, y, Graphics.FONT_XTINY,
-                (dWind[i] as Float).format("%.0f") + windDirName((dDir[i] as Number).toFloat()),
-                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-
-            // Daily rain sum
             dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
             dc.drawText(xRain, y, Graphics.FONT_XTINY,
                 (dRain[i] as Float).format("%.1f") + "mm",

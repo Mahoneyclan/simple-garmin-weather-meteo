@@ -2,7 +2,6 @@
 <resources>
     <properties>
         <property id="refresh_rate" type="number">30</property>
-        <property id="home_name"    type="string">Samford Valley</property>
         <property id="home_lat"     type="string">-27.3705</property>
         <property id="home_lon"     type="string">152.8691</property>
     </properties>
@@ -14,9 +13,6 @@
                 <listEntry value="30">30 minutes</listEntry>
                 <listEntry value="60">1 hour</listEntry>
             </settingConfig>
-        </setting>
-        <setting propertyKey="@Properties.home_name" title="Home Location Name">
-            <settingConfig type="alphaNumeric" maxLength="32"/>
         </setting>
         <setting propertyKey="@Properties.home_lat" title="Home Latitude">
             <settingConfig type="alphaNumeric" maxLength="12"/>
