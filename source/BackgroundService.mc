@@ -129,6 +129,7 @@ class BackgroundService extends Toybox.System.ServiceDelegate {
                 "daily"           => "temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_direction_10m_dominant,precipitation_sum,weather_code",
                 "wind_speed_unit" => "kmh",
                 "forecast_days"   => "5",
+                "forecast_hours"  => "6",
                 "timezone"        => "auto"
             },
             { :method => Communications.HTTP_REQUEST_METHOD_GET },
@@ -199,7 +200,7 @@ class BackgroundService extends Toybox.System.ServiceDelegate {
 
         var info        = Gregorian.info(Time.now(), Time.FORMAT_SHORT);
         var currentHour = info.hour as Number;
-        var hourIdx     = currentHour;
+        var hourIdx     = 0; // forecast_hours=6 starts array at current hour
 
         var hourlyTemps  = hourly["temperature_2m"]            as Array;
         var hourlyRainP  = hourly["precipitation_probability"] as Array;
