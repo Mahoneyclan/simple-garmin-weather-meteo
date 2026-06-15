@@ -5,7 +5,6 @@ import Toybox.Graphics;
 import Toybox.Lang;
 import Toybox.Math;
 import Toybox.Position;
-import Toybox.System;
 import Toybox.Timer;
 import Toybox.Time;
 import Toybox.Time.Gregorian;
@@ -47,8 +46,7 @@ class WeatherView extends WatchUi.View {
     // Reverse-geocoded home name; seeded from cached data and refreshed each fetch.
     private var homeLocationName as String = "Home";
 
-    // Redraws the screen every 10 s while the widget is visible so elapsed
-    // time and any background data arrival are reflected without user input.
+    // Redraws the screen every 60 s while the widget is visible.
     private var refreshTimer as Timer.Timer = new Timer.Timer();
     // Single-shot timer used to delay a retry after a network error.
     private var retryTimer   as Timer.Timer = new Timer.Timer();
@@ -59,7 +57,6 @@ class WeatherView extends WatchUi.View {
     }
 
     function onLayout(dc as Dc) as Void {
-        System.println("[WeatherView] onLayout: loading cached data");
         gpsData      = Storage.getValue("gps_weather")  as Array?;
         homeData     = Storage.getValue("home_weather")  as Array?;
         gpsForecast  = Storage.getValue("gps_forecast")  as Array?;
@@ -71,7 +68,7 @@ class WeatherView extends WatchUi.View {
     }
 
     function onShow() as Void {
-        refreshTimer.start(method(:onRefreshTimer), 10000, true);
+        refreshTimer.start(method(:onRefreshTimer), 60000, true);
     }
 
     function onHide() as Void {
@@ -125,35 +122,49 @@ class WeatherView extends WatchUi.View {
     // Fetching
     // ---------------------------------------------------------------
 
+    // Returns true if cached data was stored within the configured refresh interval.
+    private function dataIsFresh() as Boolean {
+        var ts = Storage.getValue("last_fetch_time") as Number?;
+        if (ts == null) { return false; }
+        var rate = Application.Properties.getValue("refresh_rate") as Number?;
+        if (rate == null) { rate = 30; }
+        return (Time.now().value() - ts) < (rate * 60);
+    }
+
     // Fetch current conditions and forecast for both locations.
+    // Skips if data was fetched within the refresh interval to avoid redundant radio use.
     // Retries up to 3 times on network error with a 5 s delay.
     function fetchAll() as Void {
-        System.println("[WeatherView] fetchAll: starting requests");
+        if (dataIsFresh()) { return; }
         retryCount = 3;
         fetchHome();
 
         var coords = getGpsCoords();
         if (coords != null) {
-            System.println("[WeatherView] fetchAll: GPS coords lat=" + coords[0] + " lon=" + coords[1]);
             fetchWeather(coords[0], coords[1], method(:onGpsResponse));
             fetchLocationName(coords[0], coords[1], method(:onGpsLocationName));
         } else if (!gpsRequested) {
-            System.println("[WeatherView] fetchAll: requesting one-shot GPS location");
             gpsRequested = true;
             Position.enableLocationEvents(Position.LOCATION_ONE_SHOT, method(:onPosition));
         } else {
-            // Previous one-shot didn't resolve — reset so next refresh cycle tries again
-            System.println("[WeatherView] fetchAll: resetting GPS request flag for next cycle");
             gpsRequested = false;
         }
     }
 
-    // Fetch weather and reverse-geocoded name for the user-configured home location.
+    // Fetch weather and (if coordinates changed) reverse-geocoded name for home.
     private function fetchHome() as Void {
         var lat = homeLat();
         var lon = homeLon();
         fetchWeather(lat, lon, method(:onHomeResponse));
-        fetchLocationName(lat, lon, method(:onLocationName));
+        var cachedLat = Storage.getValue("home_lat_cached") as Float?;
+        var cachedLon = Storage.getValue("home_lon_cached") as Float?;
+        if (cachedLat == null || cachedLon == null
+                || (lat - cachedLat).abs() > 0.01f
+                || (lon - cachedLon).abs() > 0.01f) {
+            Storage.setValue("home_lat_cached", lat);
+            Storage.setValue("home_lon_cached", lon);
+            fetchLocationName(lat, lon, method(:onLocationName));
+        }
     }
 
     private function fetchLocationName(lat as Float or Double, lon as Float or Double, callback as Method) as Void {
@@ -263,7 +274,6 @@ class WeatherView extends WatchUi.View {
     }
 
     function onGpsResponse(responseCode as Number, data as Dictionary?) as Void {
-        System.println("[WeatherView] onGpsResponse: responseCode=" + responseCode);
         if (responseCode == 200 && data != null) {
             gpsData = parseWeather(data, gpsLocationName);
             Storage.setValue("gps_weather", gpsData);
@@ -271,24 +281,19 @@ class WeatherView extends WatchUi.View {
             Storage.setValue("gps_forecast", gpsForecast);
             WatchUi.requestUpdate();
         } else if (responseCode <= 0 && retryCount > 0) {
-            System.println("[WeatherView] onGpsResponse: network error, retrying (retryCount=" + retryCount + ")");
             retryCount--;
             retryTimer.start(method(:fetchAll), 5000, false);
-        } else {
-            System.println("[WeatherView] onGpsResponse: failed. data=" + (data != null ? "present" : "null"));
         }
     }
 
     function onHomeResponse(responseCode as Number, data as Dictionary?) as Void {
-        System.println("[WeatherView] onHomeResponse: responseCode=" + responseCode);
         if (responseCode == 200 && data != null) {
             homeData = parseWeather(data, homeLocationName);
             Storage.setValue("home_weather", homeData);
             homeForecast = parseForecast(data, homeLocationName, homeData);
             Storage.setValue("home_forecast", homeForecast);
+            Storage.setValue("last_fetch_time", Time.now().value());
             WatchUi.requestUpdate();
-        } else {
-            System.println("[WeatherView] onHomeResponse: failed. data=" + (data != null ? "present" : "null"));
         }
     }
 
