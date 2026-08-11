@@ -21,15 +21,34 @@ class WeatherView extends WatchUi.View {
     // GPS name is reverse-geocoded at runtime; this is the cold-start fallback.
     private var gpsLocationName as String = "GPS Location";
 
+    // Shipped default home coordinates — the developer's own location, used
+    // only as a fallback if the property is somehow unset. Most users never
+    // change Home Latitude/Longitude in settings, so treating these as "not
+    // configured" (see homeConfigured()) avoids surfacing an unfamiliar town.
+    const DEFAULT_HOME_LAT = -27.3705f;
+    const DEFAULT_HOME_LON = 152.8691f;
+
     // Properties are stored as strings in resources/properties.xml because
     // Connect IQ settings only support alphaNumeric input for decimal values.
     private function homeLat() as Float {
         var v = Application.Properties.getValue("home_lat");
-        return (v != null) ? (v as String).toFloat() : -27.3705f;
+        return (v != null) ? (v as String).toFloat() : DEFAULT_HOME_LAT;
     }
     private function homeLon() as Float {
         var v = Application.Properties.getValue("home_lon");
-        return (v != null) ? (v as String).toFloat() : 152.8691f;
+        return (v != null) ? (v as String).toFloat() : DEFAULT_HOME_LON;
+    }
+
+    // True once the user has set their own Home coordinates in settings.
+    // While false, the Home page/column mirrors GPS instead of fetching the
+    // shipped default location — see fetchAll().
+    private function homeConfigured() as Boolean {
+        var latStr = Application.Properties.getValue("home_lat") as String?;
+        var lonStr = Application.Properties.getValue("home_lon") as String?;
+        if (latStr == null || lonStr == null) { return false; }
+        var lat = latStr.toFloat();
+        var lon = lonStr.toFloat();
+        return (lat - DEFAULT_HOME_LAT).abs() > 0.01f || (lon - DEFAULT_HOME_LON).abs() > 0.01f;
     }
 
     // Active page: 0=current conditions, 1=forecast
@@ -137,7 +156,18 @@ class WeatherView extends WatchUi.View {
     function fetchAll() as Void {
         if (dataIsFresh()) { return; }
         retryCount = 3;
-        fetchHome();
+
+        if (homeConfigured()) {
+            fetchHome();
+        } else if (gpsData != null) {
+            // Home hasn't been set by the user — mirror the last-known GPS
+            // reading instead of fetching the shipped default coordinates,
+            // so the Home page never shows an unfamiliar town.
+            homeData     = gpsData;
+            homeForecast = gpsForecast;
+            Storage.setValue("home_weather", homeData);
+            Storage.setValue("home_forecast", homeForecast);
+        }
 
         var coords = getGpsCoords();
         if (coords != null) {
@@ -235,6 +265,13 @@ class WeatherView extends WatchUi.View {
                         gpsForecast[0] = gpsLocationName;
                         Storage.setValue("gps_forecast", gpsForecast);
                     }
+                    if (!homeConfigured()) {
+                        homeLocationName = gpsLocationName;
+                        homeData         = gpsData;
+                        homeForecast     = gpsForecast;
+                        Storage.setValue("home_weather", homeData);
+                        Storage.setValue("home_forecast", homeForecast);
+                    }
                     WatchUi.requestUpdate();
                 }
             }
@@ -280,6 +317,15 @@ class WeatherView extends WatchUi.View {
             Storage.setValue("gps_weather", gpsData);
             gpsForecast = parseForecast(data, gpsLocationName, gpsData);
             Storage.setValue("gps_forecast", gpsForecast);
+            if (!homeConfigured()) {
+                // Home isn't set — GPS doubles as Home, so this response is
+                // also what marks the fetch cycle as done.
+                homeData     = gpsData;
+                homeForecast = gpsForecast;
+                Storage.setValue("home_weather", homeData);
+                Storage.setValue("home_forecast", homeForecast);
+                Storage.setValue("last_fetch_time", Time.now().value());
+            }
             WatchUi.requestUpdate();
         } else if (responseCode <= 0 && retryCount > 0) {
             retryCount--;

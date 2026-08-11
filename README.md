@@ -2,7 +2,7 @@
 
 ![Widget on Fenix 6 Pro](store_assets/cover_500x500.png)
 
-A clean, minimal weather widget for Garmin Fenix watches. Displays live conditions for two locations — your current GPS position and a configurable home location — with a single button toggle between them.
+A clean, minimal weather widget for Garmin Fenix watches. Displays live conditions for two locations — your current GPS position and a configurable home location — with a single button toggle between them. Until you set a home location, the Home page simply mirrors your current GPS location instead of showing a placeholder town.
 
 | Current Conditions | Hourly Forecast | Daily Forecast | Glance |
 |:---:|:---:|:---:|:---:|
@@ -41,9 +41,10 @@ The two dots at the bottom of the current-conditions screen indicate the active 
 | Setting | Default | Options |
 |---------|---------|---------|
 | Background Refresh Interval | 30 min | 15 / 30 / 60 min |
-| Home Location Name | Samford Valley | Any text (max 32 chars) |
-| Home Latitude | -27.3705 | Decimal degrees (e.g. -27.3705) |
-| Home Longitude | 152.8691 | Decimal degrees (e.g. 152.8691) |
+| Home Latitude | -27.3705 (unconfigured) | Decimal degrees (e.g. -27.3705) |
+| Home Longitude | 152.8691 (unconfigured) | Decimal degrees (e.g. 152.8691) |
+
+The Latitude/Longitude defaults above are a sentinel, not a real location — until you change *both* values, the widget treats Home as unconfigured and mirrors your GPS location there instead of geocoding the default coordinates.
 
 Change settings via the **Garmin Connect app** on your phone → My Device → Apps & Widgets → SimpleGlance Weather Widget.
 

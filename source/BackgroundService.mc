@@ -22,19 +22,38 @@ class BackgroundService extends Toybox.System.ServiceDelegate {
         return "GPS Location";
     }
 
+    // Shipped default home coordinates — the developer's own location, used
+    // only as a fallback if the property is somehow unset. Most users never
+    // change Home Latitude/Longitude in settings, so treating these as "not
+    // configured" (see homeConfigured()) avoids surfacing an unfamiliar town.
+    const DEFAULT_HOME_LAT = -27.3705f;
+    const DEFAULT_HOME_LON = 152.8691f;
+
     // Properties are stored as strings in resources/properties.xml because
     // Connect IQ settings only support alphaNumeric input for decimal values.
     private function homeLat() as Float {
         var v = Application.Properties.getValue("home_lat");
-        return (v != null) ? (v as String).toFloat() : -27.3705f;
+        return (v != null) ? (v as String).toFloat() : DEFAULT_HOME_LAT;
     }
     private function homeLon() as Float {
         var v = Application.Properties.getValue("home_lon");
-        return (v != null) ? (v as String).toFloat() : 152.8691f;
+        return (v != null) ? (v as String).toFloat() : DEFAULT_HOME_LON;
+    }
+
+    // True once the user has set their own Home coordinates in settings.
+    // While false, homeResult mirrors gpsResult instead of fetching the
+    // shipped default location — see onTemporalEvent()/checkDone().
+    private function homeConfigured() as Boolean {
+        var latStr = Application.Properties.getValue("home_lat") as String?;
+        var lonStr = Application.Properties.getValue("home_lon") as String?;
+        if (latStr == null || lonStr == null) { return false; }
+        var lat = latStr.toFloat();
+        var lon = lonStr.toFloat();
+        return (lat - DEFAULT_HOME_LAT).abs() > 0.01f || (lon - DEFAULT_HOME_LON).abs() > 0.01f;
     }
 
     // Counts outstanding HTTP requests; Background.exit() is called once all reach 0.
-    private var pending           as Number      = 2;
+    private var pending           as Number      = 0;
     private var gpsResult         as Array?      = null;
     private var homeResult        as Array?      = null;
     private var gpsForecast       as Array?      = null;
@@ -43,6 +62,9 @@ class BackgroundService extends Toybox.System.ServiceDelegate {
     private var homeLocationName  as String      = "Home";
     private var homeRawCode       as Number      = 0;
     private var homeRawData       as Dictionary? = null;
+    // Cached across onTemporalEvent() -> checkDone() so checkDone() knows
+    // whether to parse a real home fetch or mirror gpsResult.
+    private var homeConfiguredFlag as Boolean    = true;
 
     function initialize() {
         System.ServiceDelegate.initialize();
@@ -54,20 +76,35 @@ class BackgroundService extends Toybox.System.ServiceDelegate {
     // only needs to enter lat/lon — the place name is filled in automatically.
     // If no cached GPS coords exist, exits with null for the GPS slot so
     // WeatherView keeps showing its last known GPS data.
+    // If Home hasn't been configured by the user, it's skipped entirely and
+    // checkDone() mirrors gpsResult into homeResult instead — see homeConfigured().
     function onTemporalEvent() as Void {
-        var lat = homeLat();
-        var lon = homeLon();
-        fetchWeather(lat, lon, method(:onHomeData));
-        fetchLocationName(lat, lon);
+        homeConfiguredFlag = homeConfigured();
+        pending = 0;
+
+        if (homeConfiguredFlag) {
+            var lat = homeLat();
+            var lon = homeLon();
+            fetchWeather(lat, lon, method(:onHomeData));
+            fetchLocationName(lat, lon);
+            pending += 2; // home weather + geocoding
+        }
 
         var stored = Storage.getValue("gps_coords") as Array<Double>?;
         if (stored != null) {
-            pending = 3;  // home weather + geocoding + GPS weather
             fetchWeather(stored[0], stored[1], method(:onGpsData));
+            pending += 1; // GPS weather
         } else {
-            pending = 2;  // home weather + geocoding only
             gpsResult   = null;
             gpsForecast = null;
+        }
+
+        if (pending == 0) {
+            // Nothing to fetch (home unconfigured, no cached GPS coords) —
+            // exit immediately so WeatherView keeps showing last known data.
+            homeResult   = gpsResult;
+            homeForecast = gpsForecast;
+            Background.exit([ gpsResult, homeResult, gpsForecast, homeForecast ]);
         }
     }
 
@@ -155,8 +192,15 @@ class BackgroundService extends Toybox.System.ServiceDelegate {
     private function checkDone() as Void {
         pending--;
         if (pending == 0) {
-            homeResult   = parseWeather(homeRawCode, homeRawData, homeLocationName);
-            homeForecast = parseForecast(homeRawCode, homeRawData, homeLocationName);
+            if (homeConfiguredFlag) {
+                homeResult   = parseWeather(homeRawCode, homeRawData, homeLocationName);
+                homeForecast = parseForecast(homeRawCode, homeRawData, homeLocationName);
+            } else {
+                // Home isn't configured — mirror GPS instead of showing the
+                // shipped default (developer's own) location.
+                homeResult   = gpsResult;
+                homeForecast = gpsForecast;
+            }
             Background.exit([ gpsResult, homeResult, gpsForecast, homeForecast ]);
         }
     }
